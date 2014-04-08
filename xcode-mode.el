@@ -1,4 +1,4 @@
-;;; xcode.el --- Major mode for handling Xcode project and workspace files
+;;; xcode-mode.el --- Major mode for handling Xcode project and workspace files
 
 ;; Copyright (c) 2014 Robert S. Jones
 
@@ -10,9 +10,7 @@
 
 ;; This is a library for interacting with Xcode project and workspace files.
 
-;; Much of this code was informed by `json.el' as the Xcode pbxproj file is
-;; structurally similar to JSON.  Many other pieces were informed by
-;; `python-django.el'.
+;; Much of this project was informed by `python-django.el'.
 
 ;;; History:
 
@@ -45,19 +43,8 @@
 (defvar xcode-mode-project-name nil
   "Xcode project name.")
 
-;; Parameters
-
-(defvar xcode-mode-object-type 'alist
-  "Type to convert pbxproj dictionaries to.
-Only support `alist' for now.")
-
-(defvar xcode-mode-array-type 'vector
-  "Type to convert pbxproj arrays to.
-Only support `vector' for now.")
-
-(defvar xcode-mode-key-type 'symbol
-  "Type to convert pbxproj keys to.
-Only support `symbol' for now.")
+(defvar xcode-mode-project-filename nil
+  "Xcode project filename.")
 
 ;; Faces
 
@@ -82,31 +69,6 @@ Many Xcode faces inherit from this one by default."
 (defface xcode-mode-face-project-name
   '((t :inherit xcode-mode-face-header))
   "Face for project name.")
-
-;; Reader utilities
-
-(defun xcode-mode-advance (&optional n)
-  "Skip past the following N characters."
-  (forward-char n))
-
-(defun xcode-mode-peek ()
-  "Return the character at point."
-  (let ((char (char-after (point))))
-    (or char :xcode-mode-eof)))
-
-(defun xcode-mode-pop ()
-  "Advance past the character at point, returning it."
-  (let ((char (xcode-mode-peek)))
-    (if (eq char :xcode-mode-eof)
-        (signal 'end-of-file nil)
-      (xcode-mode-advance)
-      char)))
-
-(defun xcode-mode-skip-whitespace ()
-  "Skip past the whitespace at point."
-  (skip-chars-forward "\t\r\n\f\b "))
-
-;; Error conditions
 
 ;; UI
 
@@ -154,8 +116,11 @@ The function receives one argument, the status buffer."
 
 (defun xcode-mode-open-project (directory)
   "Open an Xcode project at given DIRECTORY."
-  (interactive "sProject Directory: ")
+  (interactive
+   (list
+    (read-directory-name "Project Root:" xcode-mode-project-root nil t)))
   (let* ((project-name (xcode-mode-project-basename directory))
+         (project-file (concat directory "project.pbxproj"))
          (buffer-name (format "Xcode: %s" project-name)))
     (with-current-buffer (get-buffer-create buffer-name)
       (let ((inhibit-read-only t))
@@ -163,9 +128,11 @@ The function receives one argument, the status buffer."
         (xcode-mode-ui-clean)
         (set (make-local-variable
               'xcode-mode-project-name) project-name)
+        (set (make-local-variable
+              'xcode-mode-project-filename) project-file)
         (xcode-mode-ui-insert-header)
         (xcode-mode-ui-show-buffer (current-buffer))))))
 
 (provide 'xcode-mode)
 
-;;; xcode.el ends here
+;;; xcode-mode.el ends here
