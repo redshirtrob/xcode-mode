@@ -21,6 +21,7 @@
 (require 'tree-widget)
 (require 'wid-edit)
 (require 'widget)
+(require 'pbxproj-read-file)
 
 (defgroup xcode-mode nil
   "Xcode project settings."
@@ -121,6 +122,7 @@ The function receives one argument, the status buffer."
     (read-directory-name "Project Root:" xcode-mode-project-root nil t)))
   (let* ((project-name (xcode-mode-project-basename directory))
          (project-file (concat directory "project.pbxproj"))
+         (project-data (pbxproj-read-file project-file))
          (buffer-name (format "Xcode: %s" project-name)))
     (with-current-buffer (get-buffer-create buffer-name)
       (let ((inhibit-read-only t))

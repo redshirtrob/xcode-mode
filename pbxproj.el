@@ -211,16 +211,19 @@ Advances point just past the pbxproj object."
 
 (defun pbxproj-read-file (file)
   "Read pbxproj in FILE and return it."
+  (message "Reading %s" file)
   (when (file-readable-p file)
     (with-temp-buffer
       (insert-file-contents file)
       (goto-char (point-min))
+      (forward-line 1)
+      (delete-region (point-min) (point))
       (while (re-search-forward "/\\*" nil t)
         (let ((beg (match-beginning 0))
               (end (re-search-forward "\\*/")))
-          (delete-region beg end))))
-    (goto-char (point-min))
-    (pbxproj-read)))
+          (delete-region beg end)))
+      (goto-char (point-min))
+      (pbxproj-read))))
 
 (defvar pbxproj-file-name nil
   "PBXProj file to parse.")
@@ -245,8 +248,8 @@ Advances point just past the pbxproj object."
                 (end (re-search-forward "\\*/")))
             (delete-region beg end))))))
 
-(provide 'pbxproj-strip-comments)
+(provide 'pbxproj-read-file)
 (provide 'pbxproj-read-file-test)
-(provide 'pbxproj)
+(provide 'pbxproj-strip-comments)
 
 ;;; pbxproj.el ends here
