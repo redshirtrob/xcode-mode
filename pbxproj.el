@@ -61,6 +61,10 @@ Only support `symbol' for now.")
 (put 'pbxproj-error 'error-message "Unknown PBXProj error")
 (put 'pbxproj-error 'error-conditions '(pbxproj-error error))
 
+(put 'pbxproj-number-format 'error-message "Invalid number format")
+(put 'pbxproj-number-format 'error-conditions
+     '(pbxproj-number-format pbxproj-error error))
+
 (put 'pbxproj-readtable-error 'error-message "PBXProj readtable error")
 (put 'pbxproj-readtable-error 'error-conditions
      '(pbxproj-readtable-error pbxproj-error error))
@@ -95,7 +99,10 @@ Returns the updated object."
                     (char-equal char ?\r)
                     (char-equal char ?\n)
                     (char-equal char ?\f)
-                    (char-equal char ?\b)))
+                    (char-equal char ?\b)
+                    (char-equal char ?\s)
+                    (char-equal char ?\;)
+                    (char-equal char ?\,)))
       (push (pbxproj-pop) characters)
       (setq char (pbxproj-peek)))
     (if characters
@@ -110,7 +117,7 @@ Returns the updated object."
   (pbxproj-advance)
   (let ((characters '())
         (char (pbxproj-peek)))
-    (while (not (char-equal ?\"))
+    (while (not (char-equal (pbxproj-peek) ?\"))
       (push (pbxproj-pop) characters))
     ;; Skip over the '"'
     (pbxproj-advance)
@@ -118,26 +125,40 @@ Returns the updated object."
         (apply 'string (nreverse characters))
       "")))
 
+(defun pbxproj-read-number ()
+  "Read the natural number following point."
+  (let ((number-regexp "\\([0-9]+\\)?\\(\\.[0-9]+\\)?"))
+    (if (looking-at number-regexp)
+        (progn (goto-char (match-end 0))
+                (string-to-number (match-string 0)))
+      (signal 'pbxproj-number-format (list (point))))))
+
 (defun pbxproj-read-object ()
   "Read the PBXProj object at point."
-  (unless (char-equal (pbxproj-peek) ?{)
-    signal 'pbxproj-string-format (list "doesn't start with '{'!"))
+  ;; Skip over the "{"
+  (pbxproj-advance)
+  (pbxproj-skip-whitespace)
   (let ((elements (pbxproj-new-object)))
     (while (not (char-equal (pbxproj-peek) ?}))
       (pbxproj-skip-whitespace)
       (setq key (pbxproj-read-symbol))
+      (message "Key: %s" key)
       (pbxproj-skip-whitespace)
       (if (char-equal (pbxproj-peek) ?=)
           (pbxproj-advance)
           (signal 'pbxproj-object-format (list "=" (pbxproj-peek))))
       (setq value (pbxproj-read))
+      (message "Value: %s" value)
       (setq elements (pbxproj-add-to-object elements key value))
       (pbxproj-skip-whitespace)
       (unless (char-equal (pbxproj-peek) ?})
         (if (char-equal (pbxproj-peek) ?\;)
-            (pbxproj-advance)
+            (progn (pbxproj-advance)
+                   (pbxproj-skip-whitespace))
           (signal 'pbxproj-object-format (list ";" (pbxproj-peek))))))
+    ;; Skip over the "}"
     (pbxproj-advance)
+    (pbxproj-skip-whitespace)
     elements))
 
 (defun pbxproj-read-array ()
@@ -151,7 +172,8 @@ Returns the updated object."
       (pbxproj-skip-whitespace)
       (unless (char-equal (pbxproj-peek) ?\))
         (if (char-equal (pbxproj-peek) ?,)
-            (pbxproj-advance)
+            (progn (pbxproj-advance)
+                   (pbxproj-skip-whitespace))
           (signal 'pbxproj-error (list "," (pbxproj-peek))))))
     ;; Skip over the ")"
     (pbxproj-advance)
@@ -161,7 +183,7 @@ Returns the updated object."
   (let ((table
          '((?{ pbxproj-read-object)
            (?\( pbxproj-read-array)
-           (?\" pbxpron-read-string))))
+           (?\" pbxproj-read-string))))
     (mapc (lambda (char)
           (push (list char 'pbxproj-read-symbol) table))
           '(?a ?b ?c ?d ?e ?f ?g ?h ?i ?j ?k ?l ?m ?n
@@ -179,13 +201,13 @@ Returns the updated object."
   "Parse and return the pbxproj object following point.
 Advances point just past the pbxproj object."
   (pbxproj-skip-whitespace)
-  (let ((char (pbxproj-peek))
+  (let ((char (pbxproj-peek)))
         (if (not (eq char :pbxproj-eof))
             (let ((record (cdr (assq char pbxproj-readtable))))
               (if (functionp (car record))
-                  (apply (car record) (cdr record))
+                   (apply (car record) (cdr record))
                 (signal 'pbxproj-readtable-error record)))
-          (signal 'end-of-file nil)))))
+          (signal 'end-of-file nil))))
 
 (defun pbxproj-read-file (file)
   "Read pbxproj in FILE and return it."
@@ -199,6 +221,16 @@ Advances point just past the pbxproj object."
           (delete-region beg end))))
     (goto-char (point-min))
     (pbxproj-read)))
+
+(defvar pbxproj-file-name nil
+  "PBXProj file to parse.")
+
+(defun pbxproj-read-file-test ()
+  "Call `pbxproj-read-file' interactively."
+  (interactive
+   (let ((file-name (read-file-name "PBXProj file:")))
+     (message "Reading %s" file-name)
+     (pbxproj-read-file file-name))))
 
 (defun pbxproj-strip-comments ()
   "Strip comments from pbxproj file."
@@ -214,6 +246,7 @@ Advances point just past the pbxproj object."
             (delete-region beg end))))))
 
 (provide 'pbxproj-strip-comments)
+(provide 'pbxproj-read-file-test)
 (provide 'pbxproj)
 
 ;;; pbxproj.el ends here
